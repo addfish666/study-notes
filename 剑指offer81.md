@@ -994,6 +994,8 @@ while(cur) {// 第二次遍历链表时
 
 ## 560 和为k的子数组
 
+[题目链接](https://leetcode.cn/problems/subarray-sum-equals-k/description/)
+
 ### 解题思路
 
 看到子数组的和首先想到计算目标数组的前缀和，容易想到的是通过两个for循环枚举所有的子数组然后通过已经计算好的前缀和计算子数组的和，这种方法的时间复杂度为$O(n^2)$
@@ -3350,6 +3352,10 @@ Line 48: Char 35: runtime error: member access within null pointer of type 'LRUC
 
 
 
+为什么队列的数据结构由单项链表改进成双向链表？
+
+因为双向链表比单向链表多了个 pre 的指针，可以通过其找到上一个节点，那么在删除中间节点的时候，就可以直接删除，而**如果是单向链表在删除中间的时候，我们得先通过遍历找到需被删除节点的上一个节点，才能完成删除操作，这里中间多了个遍历操作**。
+
 可能的原因是因为哈希表中没有==直接存储当前节点==，**为了方便进行寻找当前节点前面一个节点的操作将单链表改进成双链表**
 
 双链表节点存储：键+值+当前节点的下一个节点的指针+当前节点的上一个节点的指针
@@ -3440,3 +3446,61 @@ public:
 ```
 
 ![](剑指offer81.assets/2.png)
+
+## 1 两数之和
+
+### 解题思路：
+
+1. hash表记录对应元素及其下标
+2. 对目标数组进行排序
+3. 双指针法通过遍历一遍数组查找目标值
+
+```c++
+class Solution {
+public:
+    vector<int> twoSum(vector<int>& nums, int target) {
+        unordered_map<int, int> mp;
+        for(int i = 0; i < nums.size(); i++) mp[nums[i]] = i;
+        sort(nums.begin(), nums.end());
+        int i = 0, j = nums.size() - 1;
+        while(i < j) {
+            if(nums[i] + nums[j] == target) return {mp[nums[i]], mp[nums[j]]};
+            else if(nums[i] + nums[j] < target) i++;
+            else j--;
+        }
+        return {};
+    }
+};
+```
+
+该方法存在问题：
+
+hash表无法区分相同元素对应的不同的下标，当数组中两个相同数构成目标和时会出错
+
+
+
+正确使用hash表的方法：不需要排序并且一次遍历解决问题
+
+**hash表中存储的东西还是不变，关键在于遍历当数组中的当前元素时，如何根据当前元素和目标和在hash表中查找对应元素**
+
+> 通过转换思想查找`目标和-当前元素`在hash表中是否存在
+
+
+
+### 方法：hash表
+
+```c++
+class Solution {
+public:
+    vector<int> twoSum(vector<int>& nums, int target) {
+        unordered_map<int, int> mp;
+        for(int i = 0; i < nums.size(); i++) {
+            int num = target - nums[i];
+            if(mp.count(num)) return {mp[num], i};
+            mp[nums[i]] = i;
+        }
+        return {};
+    }
+};
+```
+
