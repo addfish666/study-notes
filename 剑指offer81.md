@@ -3504,3 +3504,116 @@ public:
 };
 ```
 
+
+
+## 5 最长回文子串 vs 516 最长回文子序列
+
+### 解题思路：
+
+在一个回文串左右两边添加相同的元素后的新的字符串还是回文串
+
+状态：回文串左右两边，这里的两边指的就是在字符串中的下标`i,j`
+
+选择：根据字符串左右两边的元素是否相同来选择对状态进行更新
+
+
+
+==根据状态定义dp数组：==`dp[i][j](i <= j)`
+
+1. 最长回文子串：`s[i:j]`是否为回文串
+
+2. 最长回文子序列：**字符串s在[i, j]范围内最长的回文子序列的长度为`dp[i][j]`**。
+
+
+
+==根据字符串左右两边的元素(s[i]、s[j])是否相同来选择对状态进行更新:==
+
+1. 最长回文子串：
+
+* 相同：`dp[i][j] = dp[i + 1][j - 1]`
+* 不相同：`dp[i][j] = false`
+
+2. 最长回文子序列：
+
+* 相同：`dp[i][j] = dp[i + 1][j - 1] + 2`
+* 不相同：`dp[i][j] = max(dp[i + 1][j] + dp[i][j - 1])`
+
+> 如果s[i]与s[j]不相同，说明s[i]和s[j]的同时加入 并不能增加[i,j]区间回文子序列的长度，那么分别加入s[i]、s[j]看看哪一个可以组成最长的回文子序列
+
+
+
+==根据状态更新确定遍历方向：i变量顺序需要从下往上==
+
+
+
+细节：当s[i]与s[j]相邻时需要**单独考虑**，因为状态更新等式的右边的状态dp数组回不满足 `i <=j` 的要求
+
+
+
+### 方法：动态规划
+
+最长回文子串：
+
+```c++
+class Solution {
+public:
+    string longestPalindrome(string s) {
+        int n = s.size();
+        vector<vector<bool>> dp(n, vector<bool>(n, false));
+        int begin = 0;
+        int slength = 1;
+        // 初始化
+        for(int i = 0; i < n; i++) dp[i][i] = true;
+
+        for(int i = n - 1; i >= 0; i--) {
+            for(int j = i + 1; j < n; j++) {
+                if(s[i] != s[j]) dp[i][j] = false;
+                else {
+                    if(j - i < 2) dp[i][j] = true;
+
+                    else dp[i][j] = dp[i + 1][j - 1];
+                }
+                if(dp[i][j]) {
+                    int new_slength = j - i + 1;
+                    if(new_slength > slength) {
+                        slength = new_slength;
+                        begin = i;
+                    }
+                }
+            }
+        }
+        return s.substr(begin, slength);
+    }
+};
+```
+
+
+
+最长回文子序列：
+
+```c++
+class Solution {
+public:
+    int longestPalindromeSubseq(string s) {
+        int n = s.size();
+        vector<vector<int>> dp(n, vector<int>(n, 0));
+        // 初始化
+        for(int i = 0; i < n; i++) dp[i][i] = 1;
+
+        for(int i = n - 1; i >= 0; i--) {
+            for(int j = i + 1; j < n; j++) {
+                if(s[i] != s[j]) {
+                    if(j - i < 2) dp[i][j] = 1;
+                    else dp[i][j] = max(dp[i + 1][j], dp[i][j - 1]);
+                }
+                else {
+                    if(j - i < 2) dp[i][j] = 2;
+                    else dp[i][j] = dp[i + 1][j - 1] + 2;
+                }
+            }
+        }
+        return dp[0][n - 1];
+    }
+};
+```
+
