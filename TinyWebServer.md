@@ -458,10 +458,6 @@ select/poll/epoll 这是三个多路复用接口，epoll就一定是最好的吗
 
 
 
-### 2.0 负载均衡的原理
-
-[参考资料](https://xiaolincoding.com/os/8_network_system/hash.html#%E5%A6%82%E4%BD%95%E9%80%9A%E8%BF%87%E8%99%9A%E6%8B%9F%E8%8A%82%E7%82%B9%E6%8F%90%E9%AB%98%E5%9D%87%E8%A1%A1%E5%BA%A6)
-
 3. 乐观锁与悲观锁
 
 ![](TinyWebServer.assets/19.png)
@@ -469,6 +465,186 @@ select/poll/epoll 这是三个多路复用接口，epoll就一定是最好的吗
 CAS其实就是乐观锁，有三个参数：内存位置的实际值、预期的内存位置的值、需要更新的新值，每次在更新新值时需要将前面两个参数的值进行比较，只有当前面两个参数的值相同时才会取进行更新
 
 > 前面两个参数的值可以理解为版本号，只有当我们操作的版本号是我们预期的版本号时才能代表我们这次在修改之前没有其他人进行修改过，因为如果有其他人进行修改过那我们操作的版本号必然不等于我们预期的版本号
+
+
+
+### 2.0 负载均衡的原理
+
+[参考资料](https://xiaolincoding.com/os/8_network_system/hash.html#%E5%A6%82%E4%BD%95%E5%88%86%E9%85%8D%E8%AF%B7%E6%B1%82)
+
+为什么要做负载均衡：
+
+当多台服务器对外提供服务时，如何分配客户端的请求到多台服务器其中的一台上
+
+
+
+一致性哈希算法：
+
+引入的原因：当多台服务器组成一个分布式系统时，每一台服务器都有其对应可以处理的客户端请求集合，因此可以通过hash算法来将客户端的请求映射到其对应的服务器上。
+
+由于服务器可能会发生故障或者需要增加服务器的数量时，客户端的请求和对应服务器的映射方式可能会发生改变，简单的hash算法可能需要进行全部映射关系的改变，这样成本很高，因此就引入了一致性哈希算法
+
+
+
+实现的原理：
+
+将服务器和客户端都根据其ip地址映射到一个hash环上面，客户端映射的结果值往顺时针方向找到的第一个服务器映射的结果值代表这个服务器可以处理这个请求
+
+
+
+优势：
+
+* 减少了数据迁移量
+* 当引入虚拟服务器节点时可以提高稳定性
+
+
+
+代码简单实现：
+
+[参考资料](https://blog.csdn.net/qq_35102066/article/details/103153002?spm=1001.2101.3001.6650.1&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-1-103153002-blog-115457671.235%5Ev38%5Epc_relevant_default_base3&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-1-103153002-blog-115457671.235%5Ev38%5Epc_relevant_default_base3&utm_relevant_index=2)
+
+```c++
+class Node
+{
+public:
+	Node(string _addr) :NodeAddr(_addr)
+	{
+	}
+	string getNode()
+	{
+		return NodeAddr;
+	}
+	void setNodeAddr(string _addr)
+	{
+		this->NodeAddr = _addr;
+	}
+	void addCliNode(Node cli)
+	{
+		CliNodes.push_back(cli);
+	}
+	void printNodeState()
+	{
+		cout << "当前节点地址：" << NodeAddr << "   哈希值：" << hs(NodeAddr) << endl;
+		for (Node& n : CliNodes)
+		{
+			cout << "客户端节点地址：" << n.getNode() << "   哈希值：" << hs(n.getNode()) << endl;
+		}
+		cout << endl << endl << endl;
+	}
+private:
+	string NodeAddr;
+	vector<Node> CliNodes;
+};
+```
+
+Node存储的是服务点的节点，`string NodeAddr`代表服务端的地址，`vector<Node> CliNodes`代表有哪一些客户端映射到了这个服务端的节点
+
+`hs()`函数是将ip地址映射到哈希环上位置的函数
+
+`void addCliNode(Node cli)`函数代表将客户端节点添加到服务端
+
+> 上面的位置其实指的是将ip地址进过哈希运算后的hash值
+
+```c++
+class HashRing
+{
+public:
+    // 添加服务器节点到哈希环中
+	void addNode(string _addr)
+	{
+		Node newNode(_addr);
+		ServerNodes.insert(make_pair(hs(_addr), move(newNode)));
+	}
+    // 从哈希环中移除指定地址的服务器节点
+	void removeNode(string _addr)
+	{
+		size_t hashvalue = hs(_addr);
+		ServerNodes.erase(hashvalue);
+	}
+	void distributionNode(string _addr)
+	{
+		auto it = ServerNodes.lower_bound(hs(_addr));
+		if (it == ServerNodes.end())
+		{
+			it = ServerNodes.begin();
+		}
+		it->second.addCliNode(Node(_addr));
+	}
+	void printHashRingState()
+	{
+		for (auto it = ServerNodes.begin(); it != ServerNodes.end(); ++it)
+		{
+			it->second.printNodeState();
+		}
+	}
+private:
+	map<size_t, Node> ServerNodes;
+};
+```
+
+`map<size_t, Node> ServerNodes`根据哈希环上的位置（hash值）找到对应的服务器节点
+
+`void distributionNode(string _addr)`，计算客户端ip地址在哈希环上面的位置，找距离该位置最近的一个服务端节点ip地址在hash表中的位置）进而这个服务器节点，并将该客户端节点添加进入服务器节点的`vector<Node> CliNodes`，从而建立客户端到服务器的映射
+
+> `lower_bound` 函数来查找哈希环中大于或等于给定哈希值 `_addr` 的下一个节点。在哈希环中，节点按照其哈希值的顺序排列。
+
+
+
+在上面的代码基础上在哈希环上添加多个虚拟节点
+
+```c++
+class HashRingWithVirtualNode
+{
+public:
+	HashRingWithVirtualNode(int num) :VirtualNodeNum(num)
+	{
+	}
+	void addNode(string _addr)
+	{
+		for (int i = 0; i < VirtualNodeNum; ++i)
+		{
+			_addr.append(1, (i % 128));//为虚拟节点命名
+			Node newNode(_addr);//
+			ServerNodes.insert(make_pair(hs(_addr), move(newNode)));
+		}
+	}
+	void removeNode(string _addr)
+	{
+		for (int i = 0; i < VirtualNodeNum; ++i)
+		{
+			_addr.append(1, (i % 128));
+			size_t hashvalue = hs(_addr);
+			ServerNodes.erase(hashvalue);
+		}
+
+	}
+	void distributionNode(string _addr)
+	{
+		auto it = ServerNodes.lower_bound(hs(_addr));
+		if (it == ServerNodes.end())
+		{
+			it = ServerNodes.begin();
+		}
+		it->second.addCliNode(Node(_addr));
+	}
+	void printHashRingState()
+	{
+		for (auto it = ServerNodes.begin(); it != ServerNodes.end(); ++it)
+		{
+			it->second.printNodeState();
+		}
+	}
+private:
+	map<size_t, Node> ServerNodes;
+	int VirtualNodeNum;
+};
+```
+
+c++map底层是用红黑树实现的，因此哈希环插入节点和寻找节点效率都能达到$logn$
+
+但是还有为客户端寻找对应的服务器节点的时间复杂度，该时间复杂度在参考资料有简单分析
+
+
 
 ### 2.1 同步机制分装类
 
